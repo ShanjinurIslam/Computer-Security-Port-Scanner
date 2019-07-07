@@ -4,7 +4,7 @@ Details of Project
 
 1. Attack Description in a Word File
 2. Image of tools to be drawn by ourself
-3. Implimentation: Can not use library function. Have to implement by yourself
+3. Implementation: Can not use library function. Have to implement by yourself
 4. Everyone has to understand all implementations and each should implement one
 5. Draw flow diagram
 
