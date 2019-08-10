@@ -1,8 +1,6 @@
 from Tkinter import *
 import socket
-import subprocess
-import sys
-from datetime import datetime
+import threading
 
 
 class PortScanner(Frame):
@@ -33,25 +31,34 @@ class PortScanner(Frame):
                     value=2).grid(row=3, column=5)
         Button(self.parent, text='Submit',
                command=self.scan).place(x=180, y=110)
+        Button(self.parent, text='Clear',
+               command=self.clear).place(x=270, y=110)
+
+    def port_scan(self, remoteServerIP, port, count):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((remoteServerIP, port))
+        if result == 0:
+            output = "Port {}: 	 Open\n".format(port)
+            self.listbox.insert(count, output)
+        sock.close()
+
+    def clear(self):
+        self.listbox.delete(0, 'end')
 
     def scan(self):
-        self.listbox.delete(0, 'end')
+
         v = self.scanType.get()
         if(v == 1):
             print('SYN SCAN')
         if(v == 2):
             remoteServerIP = socket.gethostbyname('127.0.0.1')
-            t1 = datetime.now()
             count = 1
             try:
                 for port in range(1, 1025):
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    result = sock.connect_ex((remoteServerIP, port))
-                    if result == 0:
-                        output = "Port {}: 	 Open\n".format(port)
-                        self.listbox.insert(count, output)
-                        count = count + 1
-                    sock.close()
+                    t = threading.Thread(target=self.port_scan, args=(
+                        remoteServerIP, port, count))
+                    t.start()
+                    count = count + 1
 
             except socket.gaierror:
                 output = "Hostname could not be resolved. Exiting"
@@ -61,12 +68,6 @@ class PortScanner(Frame):
             except socket.error:
                 output = "Couldn't connect to server"
                 self.listbox.insert(count, output)
-                sys.exit()
-            t2 = datetime.now()
-            total = t2 - t1
-            output = "Scanning Completed in: {}".format(total)
-
-            self.listbox.insert(count, output)
 
 
 if __name__ == '__main__':
