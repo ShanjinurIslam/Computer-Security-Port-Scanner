@@ -1,4 +1,4 @@
-from Tkinter import *
+from tkinter import *
 import socket
 import threading
 
@@ -10,7 +10,7 @@ class PortScanner(Frame):
         self.initialize_user_interface()
 
     def initialize_user_interface(self):
-        self.parent.geometry("425x500")
+        self.parent.geometry("600x500")
         self.parent.title('Port Scanner')
         Label(root, text='\t').grid(row=0, column=2)
         Label(root, text='\t\t').grid(row=1, column=0)
@@ -21,7 +21,7 @@ class PortScanner(Frame):
         self.e2 = Entry(self.parent)
         self.e1.grid(row=1, column=5)
         self.e2.grid(row=2, column=5)
-        self.listbox = Listbox(self.parent, width=40,
+        self.listbox = Listbox(self.parent, width=65,
                                height=20)
         self.listbox.place(x=30, y=150)
         self.scanType = IntVar()
@@ -30,9 +30,9 @@ class PortScanner(Frame):
         Radiobutton(self.parent, text='TCP Scanning', variable=self.scanType,
                     value=2).grid(row=3, column=5)
         Button(self.parent, text='Submit',
-               command=self.scan).place(x=180, y=110)
+               command=self.scan).place(x=220, y=110)
         Button(self.parent, text='Clear',
-               command=self.clear).place(x=270, y=110)
+               command=self.clear).place(x=350, y=110)
 
     def tcp_port_scan(self, remoteServerIP, port, count, flag):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -73,6 +73,7 @@ class PortScanner(Frame):
                     for thread in threads:
                         thread.start()
 
+                    
                 except socket.gaierror:
                     output = "Hostname could not be resolved. Exiting"
                     self.listbox.insert(count, output)
