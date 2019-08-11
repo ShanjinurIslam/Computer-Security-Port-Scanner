@@ -1,10 +1,8 @@
 import socket, sys
 from struct import *
 
-# checksum functions needed for calculation checksum
 def checksum(msg):
 	s = 0
-	
 	# loop taking 2 characters at a time
 	for i in range(0, len(msg), 2):
 		w = ord(msg[i]) + (ord(msg[i+1]) << 8 )
@@ -32,7 +30,7 @@ except socket.error , msg:
 packet = '';
 
 source_ip = socket.gethostbyname('localhost')
-dest_ip = socket.gethostbyname('www.google.com')	# or socket.gethostbyname('www.google.com')
+dest_ip = socket.gethostbyname('localhost')	# or socket.gethostbyname('www.google.com')
 
 # ip header fields
 ip_ihl = 5

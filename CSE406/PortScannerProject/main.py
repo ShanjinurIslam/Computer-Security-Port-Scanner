@@ -38,10 +38,10 @@ class PortScanner(Frame):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         result = sock.connect_ex((remoteServerIP, port))
         if result == 0:
-            output = "Port {}: 	 Open\n".format(port)
+            output = "Port {}: Open".format(port)
             self.listbox.insert(count, output)
         elif flag == True:
-            output = "Port {}: 	 Closed or Filtered\n".format(port)
+            output = "Port {}: Closed or Filtered".format(port)
             self.listbox.insert(count, output)
 
         sock.close()
