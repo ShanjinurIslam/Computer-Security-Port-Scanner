@@ -34,40 +34,58 @@ class PortScanner(Frame):
         Button(self.parent, text='Clear',
                command=self.clear).place(x=270, y=110)
 
-    def port_scan(self, remoteServerIP, port, count):
+    def tcp_port_scan(self, remoteServerIP, port, count, flag):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         result = sock.connect_ex((remoteServerIP, port))
         if result == 0:
             output = "Port {}: 	 Open\n".format(port)
             self.listbox.insert(count, output)
+        elif flag == True:
+            output = "Port {}: 	 Closed or Filtered\n".format(port)
+            self.listbox.insert(count, output)
+
         sock.close()
 
     def clear(self):
         self.listbox.delete(0, 'end')
 
     def scan(self):
-
         v = self.scanType.get()
         if(v == 1):
             print('SYN SCAN')
         if(v == 2):
-            remoteServerIP = socket.gethostbyname('127.0.0.1')
+            address = self.e1.get()
+            remoteServerIP = socket.gethostbyname(address)
+            port_range = self.e2.get()
             count = 1
-            try:
-                for port in range(1, 1025):
-                    t = threading.Thread(target=self.port_scan, args=(
-                        remoteServerIP, port, count))
-                    t.start()
-                    count = count + 1
+            if('-' in port_range):
+                bounds = port_range.split('-')
+                lower = int(bounds[0])
+                upper = int(bounds[1])
+                try:
+                    threads = []
+                    for port in range(lower, upper):
+                        t = threading.Thread(target=self.tcp_port_scan, args=(
+                            remoteServerIP, port, count, False))
+                        threads.append(t)
+                        count = count + 1
 
-            except socket.gaierror:
-                output = "Hostname could not be resolved. Exiting"
-                self.listbox.insert(count, output)
-                sys.exit()
+                    for thread in threads:
+                        thread.start()
 
-            except socket.error:
-                output = "Couldn't connect to server"
-                self.listbox.insert(count, output)
+                except socket.gaierror:
+                    output = "Hostname could not be resolved. Exiting"
+                    self.listbox.insert(count, output)
+                    sys.exit()
+
+                except socket.error:
+                    output = "Couldn't connect to server"
+                    self.listbox.insert(count, output)
+            else:
+                port = int(port_range)
+                t = threading.Thread(target=self.tcp_port_scan, args=(
+                    remoteServerIP, port, count, True))
+                t.start()
 
 
 if __name__ == '__main__':
