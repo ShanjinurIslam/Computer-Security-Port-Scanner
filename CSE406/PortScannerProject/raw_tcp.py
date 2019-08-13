@@ -19,8 +19,7 @@ def checksum(msg):
 #create a raw socket
 try:
 	s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-except socket.error , msg:
-	print 'Socket could not be created. Error Code : ' + str(msg[0]) + ' Message ' + msg[1]
+except:
 	sys.exit()
 
 # tell kernel not to put in headers, since we are providing it, when using IPPROTO_RAW this is not necessary
@@ -73,7 +72,7 @@ tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + (tcp_psh <<3) + (tcp_ack
 # the ! in the pack format string means network order
 tcp_header = pack('!HHLLBBHHH' , tcp_source, tcp_dest, tcp_seq, tcp_ack_seq, tcp_offset_res, tcp_flags,  tcp_window, tcp_check, tcp_urg_ptr)
 
-user_data = 'Hello, how are you'
+user_data = 'SYN SCAN'
 
 # pseudo header fields
 source_address = socket.inet_aton( source_ip )
@@ -86,7 +85,7 @@ psh = pack('!4s4sBBH' , source_address , dest_address , placeholder , protocol ,
 psh = psh + tcp_header + user_data;
 
 tcp_check = checksum(psh)
-#print tcp_checksum
+print(tcp_checksum)
 
 # make the tcp header again and fill the correct checksum - remember checksum is NOT in network byte order
 tcp_header = pack('!HHLLBBH' , tcp_source, tcp_dest, tcp_seq, tcp_ack_seq, tcp_offset_res, tcp_flags,  tcp_window) + pack('H' , tcp_check) + pack('!H' , tcp_urg_ptr)
