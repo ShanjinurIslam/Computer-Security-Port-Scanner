@@ -145,6 +145,7 @@ class PortScanner(Tkinter.Frame):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
         except socket.error:
+            print(socket.error)
             sys.exit()
 
         time_end = time.time() + 2

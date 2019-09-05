@@ -3,16 +3,48 @@ import re
 import socket
 import sys
 import time
-import struct
+import os
 import threading
+from struct import *
+
+
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
+
+
+def checksum(msg):
+    s = 0
+    # loop taking 2 characters at a time
+    for i in range(0, len(msg), 2):
+        w = ord(msg[i]) + (ord(msg[i+1]) << 8)
+        s = s + w
+
+    s = (s >> 16) + (s & 0xffff)
+    s = s + (s >> 16)
+
+    # complement and mask to 4 byte short
+    s = ~s & 0xffff
+
+    return s
+
 
 def check_status(ipaddress):
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect((ipaddress,22))
-    except socket.error:
-        print("Couldn\'t connect with Target : %s\nHost is Offline\nTerminating program..." % ipaddress)
-        sys.exit(1)
+    result = os.system("ping -c 1 " + ipaddress + " > /dev/null")
+    if(result==0):
+        return True
+    else :
+        return False
+    print('\n')
+
 
 def TCP_Scan(ipaddress, port, flag):
     try:
@@ -37,7 +69,141 @@ def TCP_Scan(ipaddress, port, flag):
     return
 
 
-def SYN_Scan():
+def SYN_Scan_Sender(ip, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+    packet = ''
+    source_ip = get_ip()
+    dest_ip = ip
+    # ip layer
+    ip_ihl = 5
+    ip_ver = 4
+    ip_tos = 0
+    ip_tot_len = 0  # kernel will fill the correct total length
+    ip_id = 54321  # Id of this packet
+    ip_frag_off = 0
+    ip_ttl = 255
+    ip_proto = socket.IPPROTO_TCP
+    ip_check = 0    # kernel will fill the correct checksum
+    # Spoof the source ip address if you want to
+    ip_saddr = socket.inet_aton(source_ip)
+    ip_daddr = socket.inet_aton(dest_ip)
+    ip_ihl_ver = (ip_ver << 4) + ip_ihl
+    ip_header = pack('!BBHHHBBH4s4s', ip_ihl_ver, ip_tos, ip_tot_len,
+                     ip_id, ip_frag_off, ip_ttl, ip_proto, ip_check, ip_saddr, ip_daddr)
+    # tcp header fields
+    tcp_source = 1234   # source port
+    tcp_dest = port   # destination port
+    tcp_seq = 454
+    tcp_ack_seq = 0
+    tcp_doff = 5  # 4 bit field, size of tcp header, 5 * 4 = 20 bytes
+    # tcp flags
+    tcp_fin = 0
+    tcp_syn = 1
+    tcp_rst = 0
+    tcp_psh = 0
+    tcp_ack = 0
+    tcp_urg = 0
+    tcp_window = socket.htons(5840)  # maximum allowed window size
+    tcp_check = 0
+    tcp_urg_ptr = 0
+
+    tcp_offset_res = (tcp_doff << 4) + 0
+    tcp_flags = tcp_fin + (tcp_syn << 1) + (tcp_rst << 2) + \
+        (tcp_psh << 3) + (tcp_ack << 4) + (tcp_urg << 5)
+
+    # the ! in the pack format string means network order
+    tcp_header = pack('!HHLLBBHHH', tcp_source, tcp_dest, tcp_seq, tcp_ack_seq,
+                      tcp_offset_res, tcp_flags,  tcp_window, tcp_check, tcp_urg_ptr)
+
+    user_data = 'SYN SCAN'
+
+    # pseudo header fields
+    source_address = socket.inet_aton(source_ip)
+    dest_address = socket.inet_aton(dest_ip)
+    placeholder = 0
+    protocol = socket.IPPROTO_TCP
+    tcp_length = len(tcp_header) + len(user_data)
+
+    psh = pack('!4s4sBBH', source_address, dest_address,
+               placeholder, protocol, tcp_length)
+    psh = psh + tcp_header + user_data
+
+    tcp_check = checksum(psh)
+    # print tcp_checksum
+
+    # make the tcp header again and fill the correct checksum - remember checksum is NOT in network byte order
+    tcp_header = pack('!HHLLBBH', tcp_source, tcp_dest, tcp_seq, tcp_ack_seq, tcp_offset_res,
+                      tcp_flags,  tcp_window) + pack('H', tcp_check) + pack('!H', tcp_urg_ptr)
+
+    # final full packet - syn packets dont have any data
+    packet = ip_header + tcp_header + user_data
+
+    # Send the packet finally - the port specified has no effect
+    s.sendto(packet, (dest_ip, 0))
+    s.close()
+
+
+def SYN_Scan_Sniffer(ipaddress, port,flag):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    except socket.error:
+        print('Connection Error')
+        sys.exit(1)
+    time_end = time.time() + 2
+    while time.time() < time_end:
+        packet = s.recvfrom(65565)
+
+        # packet string from tuple
+        packet = packet[0]
+
+        # take first 20 characters for the ip header
+        ip_header = packet[0:20]
+
+        # now unpack them :)
+        iph = unpack('!BBHHHBBH4s4s', ip_header)
+
+        version_ihl = iph[0]
+        version = version_ihl >> 4
+        ihl = version_ihl & 0xF
+
+        iph_length = ihl * 4
+
+        ttl = iph[5]
+        protocol = iph[6]
+        s_addr = socket.inet_ntoa(iph[8])
+        d_addr = socket.inet_ntoa(iph[9])
+
+        tcp_header = packet[iph_length:iph_length+20]
+
+        # now unpack them :)
+        tcph = unpack('!HHLLBBHHH', tcp_header)
+
+        source_port = tcph[0]
+        dest_port = tcph[1]
+        sequence = tcph[2]
+        acknowledgement = tcph[3]
+        doff_reserved = tcph[4]
+        tcp_flags = tcph[5]
+        tcph_length = doff_reserved >> 4
+
+        tcp_rst = (tcp_flags & 0b100) >> 2
+        tcp_ack = (tcp_flags & 0b10000) >> 4
+
+        if ipaddress==s_addr and source_port==port and tcp_rst==0 and tcp_ack==1:
+            print('PORT %s STATE open' % port)
+            s.close()
+            return
+
+        if ipaddress==s_addr and source_port==port and tcp_rst==1 and tcp_ack==1 and flag==True:
+            print('PORT %s STATE closed' % port)
+            s.close()
+            return
+
+    if(flag==True):
+        print('PORT %s STATE filtered' % port)
+        s.close()
+        return
+
     return
 
 
@@ -77,7 +243,11 @@ else:
         print("Invalid Input\nTerminating Program")
         sys.exit(1)
 
-check_status(my_ip)
+host_up = check_status(my_ip)
+if(host_up == False):
+    print("Couldn\'t connect with Target : %s\nHost is Offline\nTerminating program..." % my_ip)
+    sys.exit(1)
+
 if my_namespace.port is not None:
     flag_port = True
     my_port = my_namespace.port
@@ -86,7 +256,6 @@ if my_namespace.port is not None:
         lower = int(bounds[0])
         upper = int(bounds[1])
         if(flag_tcp):
-            threads = []
             time_start = time.time()
             for port in range(lower, upper):
                 TCP_Scan(my_ip, port, False)
@@ -94,15 +263,64 @@ if my_namespace.port is not None:
             time_end = time.time()
             print('Scan completed in : %f seconds' % (time_end-time_start))
             sys.exit(1)
+        sniffer_threads = []
+        time_start = time.time()
+
+        for port in range(lower, upper):
+            sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
+                        my_ip, port, False))
+            send = threading.Thread(target=SYN_Scan_Sender, args=(
+                                my_ip, port))
+            sniff.start()
+            send.start()
+            sniffer_threads.append(sniff)
+
+        for sniff in sniffer_threads:
+            sniff.join()
+        
+        time_end = time.time()
+        print('Scan completed in : %f seconds' % (time_end-time_start))
+        sys.exit(1)
+        
 
     else:
-        my_port = int(my_port)
-        TCP_Scan(my_ip, my_port, True)
+        if(flag_tcp):
+            my_port = int(my_port)
+            TCP_Scan(my_ip, my_port, True)
+        
+        else:
+            sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
+                    my_ip, int(my_port), True))
+            send = threading.Thread(target=SYN_Scan_Sender, args=(
+                            my_ip, int(my_port)))
+            sniff.start()
+            send.start()
+            send.join()
+            sniff.join()
 
-if(flag_tcp and flag_port==False):
-    threads = []
+if(flag_tcp and flag_port == False):
     time_start = time.time()
     for port in range(1, 1024):
         TCP_Scan(my_ip, port, False)
+    time_end = time.time()
+    print('Scan completed in : %f seconds' % (time_end-time_start))
+
+sniffer_threads = []
+
+if(flag_port == False):
+    time_start = time.time()
+    
+    for port in range(1, 500):
+        sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
+                    my_ip, port, False))
+        send = threading.Thread(target=SYN_Scan_Sender, args=(
+                            my_ip, port))
+        sniff.start()
+        send.start()
+        sniffer_threads.append(sniff)
+
+    for sniff in sniffer_threads:
+        sniff.join()
+      
     time_end = time.time()
     print('Scan completed in : %f seconds' % (time_end-time_start))
