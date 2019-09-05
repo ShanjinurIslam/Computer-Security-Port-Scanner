@@ -6,26 +6,36 @@ import time
 import struct
 import threading
 
-
-def TCP_Scan(ipaddress, port,flag):
+def check_status(ipaddress):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex((ipaddress,port))
+        result = sock.connect((ipaddress,22))
+    except socket.error:
+        print("Couldn\'t connect with Target : %s\nHost is Offline\nTerminating program..." % ipaddress)
+        sys.exit(1)
+
+def TCP_Scan(ipaddress, port, flag):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((ipaddress, port))
         if result == 0:
             print('PORT %s STATE open' % port)
-        
-        if(result == 111 and flag==True):
+            return
+
+        if(result == 111 and flag == True):
             print('PORT %s STATE closed or filtered' % port)
-            
-        
+            return
+
         if result == 113:
-            print("Couldn\'t connect with Target : %s\nHost is Offline\nTerminating program..." % ipaddress)
+            print(
+                "Couldn\'t connect with Target : %s\nHost is Offline\nTerminating program..." % ipaddress)
             sys.exit(1)
-            
+
     except socket.error:
         msg = socket.error
         sys.exit(1)
-    return 
+    return
+
 
 def SYN_Scan():
     return
@@ -38,15 +48,17 @@ parser.add_argument('ipaddress', type=str,
                     help='Provide Target IP Address or URL')
 parser.add_argument('-p', '--port', type=str,
                     help='Select Specific Port or <Port Ranges>')
-parser.add_argument('-s','--SYN', action='store_true', default=False,
+parser.add_argument('-s', '--SYN', action='store_true', default=False,
                     dest='flag_syn',
                     help='Force SYN Scan')
-parser.add_argument('-t','--TCP', action='store_true', default=False,
+parser.add_argument('-t', '--TCP', action='store_true', default=False,
                     dest='flag_tcp',
                     help='Force TCP Scan')
 
 my_namespace = parser.parse_args()
 my_ip = my_namespace.ipaddress
+flag_syn = my_namespace.flag_syn
+flag_tcp = my_namespace.flag_tcp
 is_valid = re.match(
     "^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$", my_ip)
 if is_valid:
@@ -65,31 +77,32 @@ else:
         print("Invalid Input\nTerminating Program")
         sys.exit(1)
 
-
+check_status(my_ip)
 if my_namespace.port is not None:
-    flag_port = True 
+    flag_port = True
     my_port = my_namespace.port
     if('-' in my_port):
         bounds = my_port.split('-')
         lower = int(bounds[0])
         upper = int(bounds[1])
-        threads = []
-        time_start = time.time()
-        for port in range(lower, upper):
-            t = threading.Thread(target=TCP_Scan, args=(
-                my_ip, port,False))
-            threads.append(t)
-        
-        for thread in threads:
-            thread.start()
-        
-        for thread in threads:
-            thread.join()
-        time_end = time.time()
-        print('Scan completed in : %f seconds' % (time_end-time_start))
+        if(flag_tcp):
+            threads = []
+            time_start = time.time()
+            for port in range(lower, upper):
+                TCP_Scan(my_ip, port, False)
+
+            time_end = time.time()
+            print('Scan completed in : %f seconds' % (time_end-time_start))
+            sys.exit(1)
 
     else:
         my_port = int(my_port)
-        TCP_Scan(my_ip,my_port,True)
+        TCP_Scan(my_ip, my_port, True)
 
-
+if(flag_tcp and flag_port==False):
+    threads = []
+    time_start = time.time()
+    for port in range(1, 1024):
+        TCP_Scan(my_ip, port, False)
+    time_end = time.time()
+    print('Scan completed in : %f seconds' % (time_end-time_start))
