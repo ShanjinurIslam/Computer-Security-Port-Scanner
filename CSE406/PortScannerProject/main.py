@@ -8,6 +8,8 @@ import threading
 from struct import *
 
 
+
+
 def get_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -141,7 +143,7 @@ def SYN_Scan_Sender(ip, port):
     # Send the packet finally - the port specified has no effect
     s.sendto(packet, (dest_ip, 0))
     s.close()
-
+    return 
 
 def SYN_Scan_Sniffer(ipaddress, port,flag):
     try:
@@ -149,7 +151,7 @@ def SYN_Scan_Sniffer(ipaddress, port,flag):
     except socket.error:
         print('Connection Error')
         sys.exit(1)
-    time_end = time.time() + 2
+    time_end = time.time() + .1
     while time.time() < time_end:
         packet = s.recvfrom(65565)
 
@@ -192,19 +194,18 @@ def SYN_Scan_Sniffer(ipaddress, port,flag):
         if ipaddress==s_addr and source_port==port and tcp_rst==0 and tcp_ack==1:
             print('PORT %s STATE open' % port)
             s.close()
-            return
+            return 
 
         if ipaddress==s_addr and source_port==port and tcp_rst==1 and tcp_ack==1 and flag==True:
-            print('PORT %s STATE closed' % port)
+            print('PORT %s STATE closed' % port)    
             s.close()
             return
 
-    if(flag==True):
-        print('PORT %s STATE filtered' % port)
-        s.close()
-        return
+	s.close()
+	if(flag==True):
+		print('PORT %s STATE filtered' % port)
+	return
 
-    return
 
 
 flag_port = False
@@ -255,7 +256,7 @@ if my_namespace.port is not None:
         bounds = my_port.split('-')
         lower = int(bounds[0])
         upper = int(bounds[1])
-        if(flag_tcp):
+        if(flag_syn==False):
             time_start = time.time()
             for port in range(lower, upper):
                 TCP_Scan(my_ip, port, False)
@@ -264,22 +265,20 @@ if my_namespace.port is not None:
             print('Scan completed in : %f seconds' % (time_end-time_start))
             sys.exit(1)
         sniffer_threads = []
-        time_start = time.time()
 
-        for port in range(lower, upper):
-            sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
-                        my_ip, port, False))
-            send = threading.Thread(target=SYN_Scan_Sender, args=(
-                                my_ip, port))
-            sniff.start()
-            send.start()
-            sniffer_threads.append(sniff)
-
-        for sniff in sniffer_threads:
-            sniff.join()
-        
-        time_end = time.time()
-        print('Scan completed in : %f seconds' % (time_end-time_start))
+        if(flag_syn):
+        	time_start = time.time()
+		for port in range(lower, upper):
+		    sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
+		                my_ip, port, False))
+		    send = threading.Thread(target=SYN_Scan_Sender, args=(
+		                        my_ip, port))
+		    sniff.start()
+		    send.start()
+		    send.join()
+		
+		time_end = time.time()
+        	print('Scan completed in : %f seconds' % (time_end-time_start))
         sys.exit(1)
         
 
@@ -298,7 +297,7 @@ if my_namespace.port is not None:
             send.join()
             sniff.join()
 
-if(flag_tcp and flag_port == False):
+if(flag_port == False):
     time_start = time.time()
     for port in range(1, 1024):
         TCP_Scan(my_ip, port, False)
@@ -307,20 +306,16 @@ if(flag_tcp and flag_port == False):
 
 sniffer_threads = []
 
-if(flag_port == False):
+if(flag_port == False and flag_syn == True):
     time_start = time.time()
     
-    for port in range(1, 500):
+    for port in range(1, 1024):
         sniff = threading.Thread(target=SYN_Scan_Sniffer, args=(
                     my_ip, port, False))
         send = threading.Thread(target=SYN_Scan_Sender, args=(
                             my_ip, port))
         sniff.start()
         send.start()
-        sniffer_threads.append(sniff)
-
-    for sniff in sniffer_threads:
-        sniff.join()
       
     time_end = time.time()
     print('Scan completed in : %f seconds' % (time_end-time_start))
